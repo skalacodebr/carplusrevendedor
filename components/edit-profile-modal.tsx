@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Camera, Loader2 } from "lucide-react"
 import { supabase, hashPassword } from "@/lib/supabase"
@@ -22,6 +23,8 @@ interface ProfileData {
   email: string
   foto: string | null
   loja: string
+  chave_pix: string
+  chave_tipo: string
 }
 
 export function EditProfileModal({ isOpen, onClose, onProfileUpdate }: EditProfileModalProps) {
@@ -30,7 +33,9 @@ export function EditProfileModal({ isOpen, onClose, onProfileUpdate }: EditProfi
     sobrenome: "",
     email: "",
     foto: null,
-    loja: ""
+    loja: "",
+    chave_pix: "",
+    chave_tipo: ""
   })
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -68,7 +73,7 @@ export function EditProfileModal({ isOpen, onClose, onProfileUpdate }: EditProfi
       // Buscar dados do revendedor
       const { data: revendedorData, error: revendedorError } = await supabase
         .from("revendedores")
-        .select("loja")
+        .select("loja, chave_pix, chave_tipo")
         .eq("usuario_id", userId)
         .single()
 
@@ -81,7 +86,9 @@ export function EditProfileModal({ isOpen, onClose, onProfileUpdate }: EditProfi
         sobrenome: userData.sobrenome || "",
         email: userData.email || "",
         foto: userData.foto,
-        loja: revendedorData.loja || ""
+        loja: revendedorData.loja || "",
+        chave_pix: revendedorData.chave_pix || "",
+        chave_tipo: revendedorData.chave_tipo || ""
       })
     } catch (error) {
       console.error("Erro ao carregar dados do perfil:", error)
@@ -263,6 +270,20 @@ export function EditProfileModal({ isOpen, onClose, onProfileUpdate }: EditProfi
       return
     }
 
+    // Validar chave PIX se informada
+    if (profileData.chave_pix && profileData.chave_tipo) {
+      if (!validatePixKey(profileData.chave_tipo, profileData.chave_pix)) {
+        toast.error("Chave PIX inválida para o tipo selecionado")
+        return
+      }
+    }
+
+    // Se informou chave PIX mas não selecionou o tipo
+    if (profileData.chave_pix && !profileData.chave_tipo) {
+      toast.error("Selecione o tipo da chave PIX")
+      return
+    }
+
     try {
       setIsLoading(true)
       const userId = localStorage.getItem("userId")
@@ -298,7 +319,9 @@ export function EditProfileModal({ isOpen, onClose, onProfileUpdate }: EditProfi
       const { error: revendedorError } = await supabase
         .from("revendedores")
         .update({
-          loja: profileData.loja
+          loja: profileData.loja,
+          chave_pix: profileData.chave_pix,
+          chave_tipo: profileData.chave_tipo
         })
         .eq("usuario_id", userId)
 
@@ -329,6 +352,34 @@ export function EditProfileModal({ isOpen, onClose, onProfileUpdate }: EditProfi
     if (!nome && !sobrenome) return "??"
     
     return (nome.charAt(0) + sobrenome.charAt(0)).toUpperCase()
+  }
+
+  const validatePixKey = (tipo: string, chave: string): boolean => {
+    if (!chave) return true // Campos opcionais
+    
+    switch (tipo) {
+      case "cpf":
+        // Remove formatação e valida CPF
+        const cpf = chave.replace(/\D/g, "")
+        return cpf.length === 11
+      case "cnpj":
+        // Remove formatação e valida CNPJ
+        const cnpj = chave.replace(/\D/g, "")
+        return cnpj.length === 14
+      case "email":
+        // Validação básica de email
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        return emailRegex.test(chave)
+      case "telefone":
+        // Remove formatação e valida telefone
+        const telefone = chave.replace(/\D/g, "")
+        return telefone.length >= 10 && telefone.length <= 11
+      case "aleatoria":
+        // Chave aleatória deve ter 32 caracteres (formato UUID sem hífens) ou formato com hífens
+        return chave.length === 32 || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chave)
+      default:
+        return true
+    }
   }
 
   return (
@@ -432,6 +483,47 @@ export function EditProfileModal({ isOpen, onClose, onProfileUpdate }: EditProfi
                   value={profileData.loja}
                   onChange={(e) => handleInputChange("loja", e.target.value)}
                   placeholder="Nome da sua loja"
+                />
+              </div>
+            </div>
+
+            {/* Dados PIX */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium">Dados PIX</h3>
+              
+              <div>
+                <Label htmlFor="chave_tipo">Tipo de Chave PIX</Label>
+                <Select
+                  value={profileData.chave_tipo}
+                  onValueChange={(value) => handleInputChange("chave_tipo", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o tipo de chave PIX" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cpf">CPF</SelectItem>
+                    <SelectItem value="cnpj">CNPJ</SelectItem>
+                    <SelectItem value="email">E-mail</SelectItem>
+                    <SelectItem value="telefone">Telefone</SelectItem>
+                    <SelectItem value="aleatoria">Chave Aleatória</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="chave_pix">Chave PIX</Label>
+                <Input
+                  id="chave_pix"
+                  value={profileData.chave_pix}
+                  onChange={(e) => handleInputChange("chave_pix", e.target.value)}
+                  placeholder={
+                    profileData.chave_tipo === "cpf" ? "000.000.000-00" :
+                    profileData.chave_tipo === "cnpj" ? "00.000.000/0000-00" :
+                    profileData.chave_tipo === "email" ? "seu@email.com" :
+                    profileData.chave_tipo === "telefone" ? "(00) 00000-0000" :
+                    profileData.chave_tipo === "aleatoria" ? "Chave aleatória gerada pelo banco" :
+                    "Digite sua chave PIX"
+                  }
                 />
               </div>
             </div>

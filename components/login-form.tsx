@@ -74,7 +74,7 @@ export default function LoginForm() {
   }
 
   return (
-    <Card className="w-full bg-gray-300">
+    <Card className="w-full">
       <CardHeader className="space-y-1">
         <div className="flex justify-center mb-6">
           <img src="/images/car-plus-logo.png" alt="Car+ Balanceamento Automático" className="h-16 w-auto" />

@@ -97,12 +97,13 @@ export default function PedidosPage() {
         return
       }
 
-      // First, fetch pedidos - apenas novos pedidos, usando userId diretamente
+      // First, fetch pedidos - apenas novos pedidos com status pago, usando userId diretamente
       const { data: pedidosData, error: pedidosError } = await supabase
         .from("pedidos")
         .select("*")
         .eq("revendedor_id", Number.parseInt(userId))
         .in("status_detalhado", ["aguardando_preparacao", "aguardando_aceite"])
+        .eq("status", "pago")
         .order("created_at", { ascending: false })
 
       if (pedidosError) {
